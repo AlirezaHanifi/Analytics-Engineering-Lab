@@ -7,8 +7,18 @@
 - [ ] Code tested locally against the pinned Docker environment.
 - [ ] Airflow DAG runs successfully without task failures.
 - [ ] ClickHouse tables created and populated correctly.
-- [ ] Metabase dashboard built (attach screenshot or export if applicable).
+- [ ] Metabase dashboard built and validated.
 
-## Reviewer Assignment
+## Review Workflow
 
-- [ ] Peer reviewer assigned.
+- [ ] Feature branch created for this work.
+- [ ] PR opened against `prod`.
+- [ ] Reviewer assigned.
+- [ ] Reviewer approved the PR.
+- [ ] Alireza assigned for final review.
+- [ ] Alireza approved before merge.
+
+## Notes
+
+- Direct pushes to `prod` are not allowed.
+- `prod` must remain protected and only accept merged PRs.
