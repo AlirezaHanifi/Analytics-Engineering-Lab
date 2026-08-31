@@ -1,0 +1,41 @@
+services:
+  postgres:
+    volumes:
+      - ./scripts/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:26.8.1.2041
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+      - ./scripts/clickhouse-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./config/clickhouse/users.d/default-user.xml:/etc/clickhouse-server/users.d/default-user.xml:ro
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  metabase:
+    image: metabase/metabase:v0.62.18.4
+    environment:
+      MB_DB_TYPE: postgres
+      MB_DB_DBNAME: metabase
+      MB_DB_PORT: 5432
+      MB_DB_USER: metabase
+      MB_DB_PASS: metabase
+      MB_DB_HOST: postgres
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  clickhouse-data:
