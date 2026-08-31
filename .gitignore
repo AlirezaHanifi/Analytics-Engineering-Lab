@@ -1,0 +1,99 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+*.cover
+*.py,cover
+
+# Virtual environments
+.venv
+venv/
+ENV/
+env/
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.project
+.pydevproject
+.settings/
+
+# dbt
+analytics/dbt/.dbt/
+analytics/dbt/target/
+analytics/dbt/logs/
+analytics/dbt/dbt_packages/
+
+# SQLMesh
+analytics/sqlmesh/.sqlmesh/
+analytics/sqlmesh/models/__pycache__/
+analytics/sqlmesh/.cache/
+
+# Airflow
+airflow/logs/
+airflow/plugins/__pycache__/
+airflow/.airflowignore
+airflow/airflow.db
+airflow/airflow.cfg.bak
+
+# Docker
+.docker-sync/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Notebooks
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# uv lockfile
+.uv/
+.python-version
+
+# Backup files
+*.bak
+*.tmp
+*.swp
+*~
+
+# Logs
+*.log
+logs/
+
+# Local environment overrides
+local.env
