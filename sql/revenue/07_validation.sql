@@ -12,12 +12,12 @@ SELECT
     (
         SELECT sum(amount)
         FROM raw.transactions
-        WHERE status = 'Completed'
+        WHERE status = 'completed'
     ) AS raw_completed_revenue,
     (
         SELECT sum(amount)
         FROM analytics.transaction_facts
-        WHERE transaction_status = 'Completed'
+        WHERE transaction_status = 'completed'
     ) AS fact_completed_revenue;
 
 

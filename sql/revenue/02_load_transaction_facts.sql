@@ -7,7 +7,7 @@ SELECT
     t.amount,
     t.transaction_time,
     toDate(t.transaction_time) AS transaction_date,
-    t.status AS transaction_status,
+    lower(trim(t.status)) AS transaction_status,
     t.merchant_id,
     m.merchant_name,
     m.category AS merchant_category
