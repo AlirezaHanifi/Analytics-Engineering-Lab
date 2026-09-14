@@ -4,52 +4,20 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
-from airflow.decorators import dag, task
+from airflow.sdk import dag, task
 
 from utils.clickhouse_manager import ClickHouseManager
+from utils.sql_runner import execute_sql_file
 
 
 CH_HOST = "clickhouse"
 CH_PORT = 9000
-SQL_DIRECTORY = Path("/opt/airflow/scripts")
-TRANSFORMATION_SQL_PATH = SQL_DIRECTORY / "credit_risk_transformations.sql"
-VALIDATION_SQL_PATH = SQL_DIRECTORY / "credit_risk_validation.sql"
+DAG_DIRECTORY = Path(__file__).resolve().parent
+QUERY_DIRECTORY = DAG_DIRECTORY / "queries" / "credit_risk"
+TRANSFORMATION_SQL_PATH = QUERY_DIRECTORY / "transformations.sql"
+VALIDATION_SQL_PATH = QUERY_DIRECTORY / "validations.sql"
 
 logger = logging.getLogger(__name__)
-
-
-def read_sql_statements(path: Path) -> list[str]:
-    """Read a SQL file and return its executable statements in file order.
-
-    The ClickHouse Python driver executes one statement at a time. The SQL
-    files also contain comments with semicolons, so line comments are removed
-    before the file is split on statement-ending semicolons.
-    """
-    if not path.is_file():
-        raise FileNotFoundError(
-            f"SQL file not found: {path}. Check the Docker scripts volume mount."
-        )
-
-    sql = path.read_text(encoding="utf-8")
-    sql_without_comments = "\n".join(
-        line.split("--", maxsplit=1)[0] for line in sql.splitlines()
-    )
-
-    statements = [
-        statement.strip()
-        for statement in sql_without_comments.split(";")
-        if statement.strip()
-    ]
-
-    if not statements:
-        raise ValueError(f"No executable SQL statements found in {path}")
-
-    return statements
-
-
-def clickhouse_connection() -> ClickHouseManager:
-    """Create a fresh ClickHouse connection for an Airflow task."""
-    return ClickHouseManager(host=CH_HOST, port=CH_PORT)
 
 
 @dag(
@@ -70,61 +38,40 @@ def credit_risk_pipeline() -> None:
     @task
     def run_transformations() -> None:
         """Execute all model statements in their SQL-file dependency order."""
-        db = clickhouse_connection()
-        statements = read_sql_statements(TRANSFORMATION_SQL_PATH)
-
-        logger.info(
-            "Running %s statements from %s",
-            len(statements),
-            TRANSFORMATION_SQL_PATH,
-        )
-
-        for position, statement in enumerate(statements, start=1):
-            logger.info(
-                "Running transformation statement %s of %s",
-                position,
-                len(statements),
-            )
-            db.execute_query(statement)
-
+        db = ClickHouseManager(host=CH_HOST, port=CH_PORT)
+        execute_sql_file(db, TRANSFORMATION_SQL_PATH)
         logger.info("Credit-risk transformations completed successfully")
 
     @task
     def run_validations() -> None:
         """Execute validation SQL and fail if any required check is false."""
-        db = clickhouse_connection()
-        statements = read_sql_statements(VALIDATION_SQL_PATH)
+        db = ClickHouseManager(host=CH_HOST, port=CH_PORT)
+        results = execute_sql_file(db, VALIDATION_SQL_PATH)
 
-        if len(statements) != 7:
+        if len(results) != 7:
             raise ValueError(
                 f"Expected 7 validation queries in {VALIDATION_SQL_PATH}, "
-                f"but found {len(statements)}. Update this task if the file changes."
+                f"but found {len(results)}. Update this task if the file changes."
             )
 
-        results = []
-        for position, statement in enumerate(statements, start=1):
-            logger.info(
-                "Running validation query %s of %s",
-                position,
-                len(statements),
-            )
-            query_result = db.execute_query(statement)
+        validation_rows = []
+        for position, query_result in enumerate(results, start=1):
             if not query_result:
                 raise ValueError(f"Validation query {position} returned no rows")
-            results.append(query_result[0])
+            validation_rows.append(query_result[0])
 
-        row_count, unique_users = results[0]
-        raw_credit_rows, modeled_credit_rows = results[1]
-        raw_eligible, modeled_eligible = results[2]
+        row_count, unique_users = validation_rows[0]
+        raw_credit_rows, modeled_credit_rows = validation_rows[1]
+        raw_eligible, modeled_eligible = validation_rows[2]
         (
             profile_customers,
             summary_customers,
             profile_eligible,
             summary_eligible,
-        ) = results[3]
-        (eligibility_rule_mismatches,) = results[4]
-        (credit_rows_without_user,) = results[5]
-        raw_transaction_rows, modeled_transaction_rows = results[6]
+        ) = validation_rows[3]
+        (eligibility_rule_mismatches,) = validation_rows[4]
+        (credit_rows_without_user,) = validation_rows[5]
+        raw_transaction_rows, modeled_transaction_rows = validation_rows[6]
 
         checks = {
             "one profile per user": row_count == unique_users,

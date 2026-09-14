@@ -49,6 +49,8 @@ SELECT
     round(t.completed_spend, 2) AS completed_spend,
     t.failed_count,
     t.most_recent_transaction_date,
+    -- Review segment: Low < 20, Medium 20-29, High >= 30.
+    -- This is an explainable rule, not an ML prediction.
     multiIf(
         t.transaction_count < 20, 'Low',
         t.transaction_count < 30, 'Medium',
