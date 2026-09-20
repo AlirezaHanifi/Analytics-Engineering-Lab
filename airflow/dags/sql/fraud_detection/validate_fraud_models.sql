@@ -151,6 +151,7 @@ SELECT
         FROM
         (
             SELECT
+                toUInt8(1) AS expected_present,
                 transaction_date AS alert_date,
                 merchant_category,
                 arrayJoin(alert_reasons) AS alert_reason,
@@ -162,18 +163,28 @@ SELECT
             FROM analytics.fraud_alerts
             GROUP BY alert_date, merchant_category, alert_reason
         ) AS expected_summary
-        FULL OUTER JOIN analytics.fraud_risk_summary AS actual_summary
+        FULL OUTER JOIN
+        (
+            SELECT *, toUInt8(1) AS actual_present
+            FROM analytics.fraud_risk_summary
+        ) AS actual_summary
             ON expected_summary.alert_date = actual_summary.alert_date
             AND expected_summary.merchant_category = actual_summary.merchant_category
             AND expected_summary.alert_reason = actual_summary.alert_reason
-        WHERE expected_summary.alert_count != actual_summary.alert_count
-           OR expected_summary.distinct_transaction_count
-                != actual_summary.distinct_transaction_count
-           OR expected_summary.failed_count != actual_summary.failed_count
-           OR expected_summary.refunded_count != actual_summary.refunded_count
+        -- Presence flags catch missing groups even when their metrics are zero.
+        WHERE coalesce(expected_summary.expected_present, 0) = 0
+           OR coalesce(actual_summary.actual_present, 0) = 0
+           OR coalesce(expected_summary.alert_count, 0)
+                != coalesce(actual_summary.alert_count, 0)
+           OR coalesce(expected_summary.distinct_transaction_count, 0)
+                != coalesce(actual_summary.distinct_transaction_count, 0)
+           OR coalesce(expected_summary.failed_count, 0)
+                != coalesce(actual_summary.failed_count, 0)
+           OR coalesce(expected_summary.refunded_count, 0)
+                != coalesce(actual_summary.refunded_count, 0)
            OR abs(
-                expected_summary.transaction_amount
-                - actual_summary.transaction_amount
+                coalesce(expected_summary.transaction_amount, 0)
+                - coalesce(actual_summary.transaction_amount, 0)
            ) > 0.01
     ),
     toUInt64(0)
