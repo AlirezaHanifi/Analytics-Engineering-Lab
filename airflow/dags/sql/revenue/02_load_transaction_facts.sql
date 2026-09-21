@@ -1,0 +1,24 @@
+TRUNCATE TABLE analytics.transaction_facts;
+
+INSERT INTO analytics.transaction_facts
+SELECT
+    t.transaction_id,
+    t.user_id,
+    t.amount,
+    t.transaction_time,
+    toDate(t.transaction_time) AS transaction_date,
+    lower(trim(t.status)) AS transaction_status,
+    t.merchant_id,
+    m.merchant_name,
+    m.category AS merchant_category
+FROM raw.transactions AS t
+LEFT JOIN
+(
+    SELECT
+        merchant_id,
+        any(merchant_name) AS merchant_name,
+        any(category) AS category
+    FROM raw.merchants
+    GROUP BY merchant_id
+) AS m
+    ON t.merchant_id = m.merchant_id;

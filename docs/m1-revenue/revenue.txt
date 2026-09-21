@@ -1,0 +1,59 @@
+# Revenue & Transaction Volume Pipeline Documentation
+
+Technical documentation covering the data models, financial business logic, and automated quality gates for the revenue pipeline.
+
+---
+
+## 1. Overview
+
+* **Objective:** Measure total monetary flow through the platform, evaluate category-level revenue contributions, and track transaction performance over time.
+* **Source Data:** Transaction records from `raw.transactions` and merchant metadata from `raw.merchants`.
+* **Orchestration:** Airflow DAG `revenue_pipeline` enforcing idempotency through a `TRUNCATE + INSERT` pattern.
+
+---
+
+## 2. ClickHouse Data Models
+
+The analytics layer is organized across three ClickHouse tables in the `analytics` database:
+
+### A. Transaction Fact Model (`analytics.transaction_facts`)
+* **Grain:** One row per individual transaction.
+* **Engine & Sorting Key:** `MergeTree()` ordered by `(transaction_date, merchant_id, transaction_id)`.
+* **Key Features:** Status values normalized to lowercase, dates parsed to `Date` types, and `LowCardinality(String)` applied to status and category columns to optimize storage footprint and query execution.
+
+### B. Daily Revenue Aggregate (`analytics.daily_revenue`)
+* **Grain:** One row per calendar day.
+* **Engine & Sorting Key:** `MergeTree()` ordered by `transaction_date`.
+* **Metrics:** Overall transaction count, status-specific counts, completed gross revenue, refunded amount, failed volume, net revenue flow, and average order values.
+
+### C. Category Revenue Aggregate (`analytics.category_revenue`)
+* **Grain:** One row per calendar day per merchant category.
+* **Engine & Sorting Key:** `MergeTree()` ordered by `(transaction_date, merchant_category)`.
+* **Metrics:** Symmetrical to `analytics.daily_revenue` with an added `merchant_category` dimension for cross-category benchmarking.
+
+---
+
+## 3. Business Logic & Status Treatment
+
+* **Completed Revenue (Gross):** Total monetary value of successfully settled transactions (`status = 'completed'`).
+* **Refunded Amount:** Total monetary value of reversed transactions (`status = 'refunded'`).
+* **Net Revenue:** Inflow remaining after subtracting refunds:
+  `net_revenue = completed_revenue - refunded_amount`
+* **Failed Amount:** Monetary value of failed payments (`status = 'failed'`); excluded from recognized revenue and monitored strictly as an indicator of lost sales opportunity.
+* **Transaction Counts:**
+  * `total_transaction_count`: Total transaction attempts across all statuses via `count()`.
+  * `completed_count`, `failed_count`, and `refunded_count`: Segmented counts per status.
+* **Averages:**
+  * `avg_completed_amount`: Average Order Value (AOV) calculated exclusively on completed transactions.
+  * `avg_refunded_amount`: Average amount across refunded items to monitor ticket-size refund exposure.
+
+---
+
+## 4. Data Quality & Validation
+
+The automated Airflow task `validate_revenue` executes four data quality checks, halting the pipeline upon any discrepancy:
+
+1. **Row Count Match:** Verifies that row counts in `analytics.transaction_facts` strictly match source records in `raw.transactions`.
+2. **Dimension Completeness:** Confirms zero transactions have empty or unmapped merchant categories (`missing_count == 0`).
+3. **Gross Revenue Reconciliation:** Ensures total completed revenue in `analytics.transaction_facts` matches `raw.transactions` within a 0.01 tolerance.
+4. **Cross-Table Consistency:** Validates that daily totals for completed revenue, net revenue, and transaction counts in `analytics.daily_revenue` equal the sum of category aggregates in `analytics.category_revenue`.
