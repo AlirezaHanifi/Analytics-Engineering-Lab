@@ -15,9 +15,9 @@ CREATE TABLE IF NOT EXISTS analytics.user_credit_facts
     user_id UInt32,
     score_date Date,
     credit_score UInt16,
-    risk_band String,
+    risk_band LowCardinality(String),
     loan_eligible UInt8,
-    income_band String,
+    income_band LowCardinality(String),
     monthly_spend Float32,
     age UInt8,
     join_date Date,
@@ -26,10 +26,18 @@ CREATE TABLE IF NOT EXISTS analytics.user_credit_facts
     completed_spend Float64,
     failed_count UInt64,
     most_recent_transaction_date DateTime,
-    activity_segment String
+    activity_segment LowCardinality(String)
 )
 ENGINE = MergeTree
 ORDER BY user_id;
+
+-- Keep existing local tables compatible when this model is rerun after a
+-- schema change. These operations are safe when the columns already use
+-- LowCardinality(String).
+ALTER TABLE analytics.user_credit_facts
+    MODIFY COLUMN risk_band LowCardinality(String),
+    MODIFY COLUMN income_band LowCardinality(String),
+    MODIFY COLUMN activity_segment LowCardinality(String);
 
 TRUNCATE TABLE analytics.user_credit_facts;
 
@@ -75,9 +83,9 @@ LEFT JOIN
 
 -- ============================================================
 -- 2. LATEST USER CREDIT PROFILE
--- Current decision-ready profile. The source currently contains
--- one supplied score_date row per user; no score history is
--- invented here.
+-- Required decision-ready layer. The source currently contains one supplied
+-- score_date row per user, so this intentionally exposes the current fact row
+-- without inventing score history or performing historical deduplication.
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS analytics.latest_user_credit_profile
@@ -85,9 +93,9 @@ CREATE TABLE IF NOT EXISTS analytics.latest_user_credit_profile
     user_id UInt32,
     score_date Date,
     credit_score UInt16,
-    risk_band String,
+    risk_band LowCardinality(String),
     loan_eligible UInt8,
-    income_band String,
+    income_band LowCardinality(String),
     monthly_spend Float32,
     age UInt8,
     join_date Date,
@@ -96,10 +104,15 @@ CREATE TABLE IF NOT EXISTS analytics.latest_user_credit_profile
     completed_spend Float64,
     failed_count UInt64,
     most_recent_transaction_date DateTime,
-    activity_segment String
+    activity_segment LowCardinality(String)
 )
 ENGINE = MergeTree
 ORDER BY user_id;
+
+ALTER TABLE analytics.latest_user_credit_profile
+    MODIFY COLUMN risk_band LowCardinality(String),
+    MODIFY COLUMN income_band LowCardinality(String),
+    MODIFY COLUMN activity_segment LowCardinality(String);
 
 TRUNCATE TABLE analytics.latest_user_credit_profile;
 
@@ -115,8 +128,8 @@ FROM analytics.user_credit_facts;
 
 CREATE TABLE IF NOT EXISTS analytics.credit_risk_summary
 (
-    risk_band String,
-    income_band String,
+    risk_band LowCardinality(String),
+    income_band LowCardinality(String),
     customer_count UInt64,
     average_score Float64,
     eligible_count UInt64,
@@ -125,6 +138,10 @@ CREATE TABLE IF NOT EXISTS analytics.credit_risk_summary
 )
 ENGINE = MergeTree
 ORDER BY (risk_band, income_band);
+
+ALTER TABLE analytics.credit_risk_summary
+    MODIFY COLUMN risk_band LowCardinality(String),
+    MODIFY COLUMN income_band LowCardinality(String);
 
 TRUNCATE TABLE analytics.credit_risk_summary;
 
